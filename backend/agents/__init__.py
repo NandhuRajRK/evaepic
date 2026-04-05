@@ -1,15 +1,10 @@
 """
-LangGraph Multi-Agent Negotiation System
+LangGraph multi-agent negotiation system.
 
-Main exports for the negotiation graph system.
+The heavy graph imports stay lazy so demo mode can run without the full AI stack
+installed in the local Python environment.
 """
 
-from .graph import app, create_negotiation_graph, run_negotiation
 from .state import GraphState
 
-__all__ = [
-    "app",
-    "create_negotiation_graph",
-    "run_negotiation",
-    "GraphState",
-]
+__all__ = ["GraphState"]

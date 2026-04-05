@@ -8,6 +8,10 @@ import logging
 from typing import Dict, Any, List
 from agents.utils.vendor_api import VendorAPIClient
 from agents.config import NEGOTIATION_API_BASE, NEGOTIATION_TEAM_ID, MAX_VENDORS_LIMIT
+from agents.utils.pinecone_vendor_index import (
+    PineconeVendorIndex,
+    build_order_search_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +83,25 @@ def fetch_vendors_node(state: Dict[str, Any]) -> Dict[str, Any]:
         
         # Fetch vendors from API
         vendors = client.get_all_vendors(team_id=team_id)
+
+        order = state.get("order_object") or {}
+        pinecone_index = PineconeVendorIndex()
+        ranked_vendor_ids = pinecone_index.search_vendor_ids(build_order_search_text(order))
+
+        if ranked_vendor_ids:
+            vendor_lookup = {str(vendor["id"]): vendor for vendor in vendors}
+            ranked_vendors = [
+                vendor_lookup[vendor_id]
+                for vendor_id in ranked_vendor_ids
+                if vendor_id in vendor_lookup
+            ]
+
+            if ranked_vendors:
+                vendors = ranked_vendors
+                logger.info(
+                    "[DATABASE_FETCHER] Ranked %s vendors with Pinecone before limiting",
+                    len(vendors),
+                )
         
         if MAX_VENDORS_LIMIT > 0:
             vendors = vendors[:MAX_VENDORS_LIMIT]
