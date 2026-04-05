@@ -28,12 +28,15 @@ interface NegotiationEvent {
     payload: any;
 }
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const useNegotiation = (): UseNegotiationReturn => {
     const [isNegotiating, setIsNegotiating] = useState(false);
     const [progress, setProgress] = useState<OrderProgressStep[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [finalResult, setFinalResult] = useState<any | null>(null);
     const abortRef = useRef<AbortController | null>(null);
+    const playbackRef = useRef<Promise<void>>(Promise.resolve());
     const vendorTrackerRef = useRef<VendorTracker>({});
 
     const resetNegotiation = useCallback(() => {
@@ -46,6 +49,7 @@ export const useNegotiation = (): UseNegotiationReturn => {
             abortRef.current.abort();
             abortRef.current = null;
         }
+        playbackRef.current = Promise.resolve();
     }, []);
 
     const handleNegotiationEvent = (data: NegotiationEvent) => {
@@ -62,6 +66,25 @@ export const useNegotiation = (): UseNegotiationReturn => {
             setIsNegotiating(false);
         }
     };
+
+    const enqueueNegotiationEvent = useCallback((data: NegotiationEvent) => {
+        const delay =
+            data.type === "progress"
+                ? 450
+                : data.type === "complete"
+                    ? 600
+                    : 0;
+
+        playbackRef.current = playbackRef.current.then(async () => {
+            if (delay > 0) {
+                await wait(delay);
+            }
+
+            handleNegotiationEvent(data);
+        });
+
+        return playbackRef.current;
+    }, []);
 
     const startNegotiation = useCallback(async (userInput: string, orderData?: any) => {
         resetNegotiation();
@@ -121,14 +144,16 @@ export const useNegotiation = (): UseNegotiationReturn => {
                         continue;
                     }
 
-                    handleNegotiationEvent(JSON.parse(line) as NegotiationEvent);
+                    await enqueueNegotiationEvent(JSON.parse(line) as NegotiationEvent);
                 }
             }
 
             const remaining = buffer.trim();
             if (remaining) {
-                handleNegotiationEvent(JSON.parse(remaining) as NegotiationEvent);
+                await enqueueNegotiationEvent(JSON.parse(remaining) as NegotiationEvent);
             }
+
+            await playbackRef.current;
 
         } catch (e) {
             if (e instanceof DOMException && e.name === "AbortError") {
@@ -141,7 +166,7 @@ export const useNegotiation = (): UseNegotiationReturn => {
         } finally {
             abortRef.current = null;
         }
-    }, [resetNegotiation]);
+    }, [enqueueNegotiationEvent, resetNegotiation]);
 
     const handleProgressUpdate = (node: string, message: string, stateUpdate: any) => {
         // Map nodes to steps (1-based index for OrderProgressStep)

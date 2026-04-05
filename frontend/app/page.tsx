@@ -10,10 +10,8 @@ import OrderInputBubble from "./components/OrderInputBubble";
 import MainInputContainer from "./components/MainInputContainer";
 import OrderFormModal from "./components/OrderFormModal";
 import OrderResultCard from "./components/OrderResultCard";
-import ModeBanner from "./components/ModeBanner";
 import PromptChips from "./components/PromptChips";
 import { buildApiUrl } from "@/lib/api";
-import { clerkEnabled } from "@/lib/auth-config";
 import { productCatalog, mockVendors } from "./constants/mockData";
 import { OrderItem } from "./types/order";
 import { useAudioRecording } from "./hooks/useAudioRecording";
@@ -43,7 +41,6 @@ export default function Home() {
   const [filteredVendors, setFilteredVendors] = useState(mockVendors);
   const [isVendorFilterOpen, setIsVendorFilterOpen] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [isMocking, setIsMocking] = useState(false);
   /* 
      REPLACED LOCAL STATE WITH HOOK 
   */
@@ -56,10 +53,6 @@ export default function Home() {
   } = useNegotiation();
 
   const [orderInputText, setOrderInputText] = useState("");
-
-  useEffect(() => {
-    setIsMocking(!clerkEnabled);
-  }, []);
 
   const { isRecording, startRecording, stopRecording } = useAudioRecording((text) => {
     setInputValue((prev) => prev + text);
@@ -481,8 +474,6 @@ export default function Home() {
         {/* Main Input Container - Centered */}
         {orderProgress.length === 0 && (
           <div className="w-full flex flex-col items-center justify-center gap-6">
-            <ModeBanner mode={isMocking ? "demo" : "live"} />
-
             {/* Logo and Greeting */}
             <div className="flex flex-row items-center gap-4">
               <img
