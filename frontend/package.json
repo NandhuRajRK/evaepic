@@ -9,15 +9,19 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.0.8",
     "@react-aria/button": "^3.14.2",
     "@react-aria/focus": "^3.21.2",
     "@react-aria/interactions": "^3.25.6",
     "@react-aria/overlays": "^3.30.0",
     "@react-aria/textfield": "^3.18.2",
     "@react-stately/toggle": "^3.9.2",
+    "@sentry/nextjs": "^10.47.0",
+    "@supabase/supabase-js": "^2.101.1",
     "next": "16.0.10",
-    "react": "19.2.1",
-    "react-dom": "19.2.1"
+    "posthog-js": "^1.364.7",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

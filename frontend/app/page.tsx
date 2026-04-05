@@ -1,7 +1,7 @@
 "use client";
 
+import posthog from "posthog-js";
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import PlatformLayout from "./components/PlatformLayout";
 import FloatingActionButton from "./components/FloatingActionButton";
 import ChatInterface from "./components/ChatInterface";
@@ -10,12 +10,15 @@ import OrderInputBubble from "./components/OrderInputBubble";
 import MainInputContainer from "./components/MainInputContainer";
 import OrderFormModal from "./components/OrderFormModal";
 import OrderResultCard from "./components/OrderResultCard";
+import ModeBanner from "./components/ModeBanner";
+import PromptChips from "./components/PromptChips";
+import { buildApiUrl } from "@/lib/api";
+import { clerkEnabled } from "@/lib/auth-config";
 import { productCatalog, mockVendors } from "./constants/mockData";
-import { OrderItem, OrderProgressStep } from "./types/order";
+import { OrderItem } from "./types/order";
 import { useAudioRecording } from "./hooks/useAudioRecording";
 import { useNegotiation } from "./hooks/useNegotiation";
 import { OrderObject } from "./types/extraction";
-import { MOCK_PROGRESS_DATA } from "./data/mockProgress";
 
 export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -53,6 +56,10 @@ export default function Home() {
   } = useNegotiation();
 
   const [orderInputText, setOrderInputText] = useState("");
+
+  useEffect(() => {
+    setIsMocking(!clerkEnabled);
+  }, []);
 
   const { isRecording, startRecording, stopRecording } = useAudioRecording((text) => {
     setInputValue((prev) => prev + text);
@@ -268,11 +275,15 @@ export default function Home() {
 
   const handleSendButtonClick = async () => {
     if (inputValue.trim().length > 0) {
+      posthog.capture("order_extraction_requested", {
+        attached_files: attachedFiles.length,
+        input_length: inputValue.trim().length,
+      });
 
       // Use the new AI Extraction Agent
       setIsExtracting(true);
       try {
-        const response = await fetch('/api/extract', {
+        const response = await fetch(buildApiUrl("/extract"), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -285,6 +296,10 @@ export default function Home() {
         }
 
         const orderData = await response.json();
+        posthog.capture("order_extracted", {
+          item: orderData.item,
+          quantity: orderData.quantity?.preferred,
+        });
         setIsExtracting(false);
 
         // Use the callback to process the data and open the form
@@ -293,6 +308,7 @@ export default function Home() {
 
       } catch (error) {
         console.error("Extraction failed, falling back to basic parser", error);
+        posthog.capture("order_extraction_failed");
         setIsExtracting(false);
 
         // Fallback to legacy parser if API fails
@@ -355,6 +371,11 @@ export default function Home() {
       },
       urgency: mainItem.urgency || 'medium'
     } : null;
+
+    posthog.capture("negotiation_started", {
+      item_count: finalItems.length,
+      budget: singleOrderObject?.budget ?? 0,
+    });
 
     // Pass the text description as user input to the agent, and the structured object
     startNegotiation(orderText, singleOrderObject);
@@ -460,6 +481,8 @@ export default function Home() {
         {/* Main Input Container - Centered */}
         {orderProgress.length === 0 && (
           <div className="w-full flex flex-col items-center justify-center gap-6">
+            <ModeBanner mode={isMocking ? "demo" : "live"} />
+
             {/* Logo and Greeting */}
             <div className="flex flex-row items-center gap-4">
               <img
@@ -473,6 +496,7 @@ export default function Home() {
                 Hi, I'm EvaEpic!
               </h1>
             </div>
+            <PromptChips onSelect={setInputValue} />
             <MainInputContainer
               inputValue={inputValue}
               onInputChange={setInputValue}

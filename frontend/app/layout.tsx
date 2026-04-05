@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Geist, Geist_Mono } from "next/font/google";
+import AuthTelemetryBridge from "./components/AuthTelemetryBridge";
+import { clerkEnabled } from "@/lib/auth-config";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -22,12 +25,19 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const content = (
+    <>
+      {clerkEnabled ? <AuthTelemetryBridge /> : null}
+      {children}
+    </>
+  );
+
   return (
     <html lang="en" className="light">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        {clerkEnabled ? <ClerkProvider>{content}</ClerkProvider> : content}
       </body>
     </html>
   );

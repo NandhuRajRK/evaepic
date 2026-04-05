@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import { OrderProgressStep, VendorProgress } from '../types/order';
+import { buildApiUrl } from '@/lib/api';
+import { OrderProgressStep } from '../types/order';
 
 interface NegotiationState {
     isNegotiating: boolean;
@@ -21,12 +22,18 @@ interface UseNegotiationReturn extends NegotiationState {
     resetNegotiation: () => void;
 }
 
+interface NegotiationEvent {
+    type: "progress" | "complete" | "error";
+    message?: string;
+    payload: any;
+}
+
 export const useNegotiation = (): UseNegotiationReturn => {
     const [isNegotiating, setIsNegotiating] = useState(false);
     const [progress, setProgress] = useState<OrderProgressStep[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [finalResult, setFinalResult] = useState<any | null>(null);
-    const wsRef = useRef<WebSocket | null>(null);
+    const abortRef = useRef<AbortController | null>(null);
     const vendorTrackerRef = useRef<VendorTracker>({});
 
     const resetNegotiation = useCallback(() => {
@@ -35,13 +42,28 @@ export const useNegotiation = (): UseNegotiationReturn => {
         setError(null);
         setFinalResult(null);
         vendorTrackerRef.current = {};
-        if (wsRef.current) {
-            wsRef.current.close();
-            wsRef.current = null;
+        if (abortRef.current) {
+            abortRef.current.abort();
+            abortRef.current = null;
         }
     }, []);
 
-    const startNegotiation = useCallback((userInput: string, orderData?: any) => {
+    const handleNegotiationEvent = (data: NegotiationEvent) => {
+        if (data.type === "progress") {
+            handleProgressUpdate(data.payload.node, data.message || "", data.payload.state_update);
+        } else if (data.type === "complete") {
+            setIsNegotiating(false);
+            setProgress(prev => prev.map(s => ({ ...s, status: "completed" })));
+            if (data.payload?.final_state?.final_comparison_report) {
+                setFinalResult(data.payload.final_state.final_comparison_report);
+            }
+        } else if (data.type === "error") {
+            setError(data.payload?.message || "Negotiation failed");
+            setIsNegotiating(false);
+        }
+    };
+
+    const startNegotiation = useCallback(async (userInput: string, orderData?: any) => {
         resetNegotiation();
         setIsNegotiating(true);
 
@@ -60,61 +82,64 @@ export const useNegotiation = (): UseNegotiationReturn => {
         setProgress(initialSteps);
 
         try {
-            // Connect to WebSocket
-            // Assuming backend is on localhost:8000 for development
-            const wsUrl = "ws://localhost:8000/api/negotiate/ws";
-            const ws = new WebSocket(wsUrl);
-            wsRef.current = ws;
+            const abortController = new AbortController();
+            abortRef.current = abortController;
 
-            ws.onopen = () => {
-                console.log("Connected to negotiation WebSocket");
-                // Send start command
-                ws.send(JSON.stringify({
-                    type: "start_negotiation",
+            const response = await fetch(buildApiUrl("/negotiate/stream"), {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
                     user_input: userInput,
-                    order_object: orderData
-                }));
-            };
+                    order_object: orderData,
+                }),
+                signal: abortController.signal,
+            });
 
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
+            if (!response.ok || !response.body) {
+                throw new Error(`Negotiation request failed with status ${response.status}`);
+            }
 
-                    if (data.type === "progress") {
-                        handleProgressUpdate(data.payload.node, data.message, data.payload.state_update);
-                    } else if (data.type === "complete") {
-                        setIsNegotiating(false); // Finished processing
-                        // Mark all potentially remaining steps as complete
-                        setProgress(prev => prev.map(s => ({ ...s, status: "completed" })));
-                        // Close connection on success
-                        ws.close();
-                        wsRef.current = null;
-                    } else if (data.type === "error") {
-                        setError(data.payload.message);
-                        setIsNegotiating(false);
-                        // Close connection on error
-                        ws.close();
-                        wsRef.current = null;
-                    }
-                } catch (e) {
-                    console.error("Error parsing WS message:", e);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { value, done } = await reader.read();
+
+                if (done) {
+                    break;
                 }
-            };
 
-            ws.onerror = (e) => {
-                console.error("WebSocket error:", e);
-                setError("Connection error occurred");
-                setIsNegotiating(false);
-            };
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() ?? "";
 
-            ws.onclose = () => {
-                console.log("WebSocket connection closed");
-            };
+                for (const line of lines) {
+                    if (!line.trim()) {
+                        continue;
+                    }
+
+                    handleNegotiationEvent(JSON.parse(line) as NegotiationEvent);
+                }
+            }
+
+            const remaining = buffer.trim();
+            if (remaining) {
+                handleNegotiationEvent(JSON.parse(remaining) as NegotiationEvent);
+            }
 
         } catch (e) {
+            if (e instanceof DOMException && e.name === "AbortError") {
+                return;
+            }
+
             console.error("Failed to start negotiation:", e);
             setError("Failed to start negotiation");
             setIsNegotiating(false);
+        } finally {
+            abortRef.current = null;
         }
     }, [resetNegotiation]);
 

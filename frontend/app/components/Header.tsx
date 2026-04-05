@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useButton } from "@react-aria/button";
+import HeaderAuthControls from "./HeaderAuthControls";
+import { clerkEnabled } from "@/lib/auth-config";
 
 interface HeaderProps {
   onToggle?: () => void;
@@ -98,6 +100,13 @@ export default function Header({ onToggle, isCollapsed, pageTitle }: HeaderProps
         )}
       </div>
       <div className="flex items-center gap-3 relative">
+        {clerkEnabled ? (
+          <HeaderAuthControls />
+        ) : (
+          <div className="hidden rounded-xl border border-[#DEB887]/40 bg-[#FAF0E6]/80 px-3 py-2 text-sm font-medium text-[#6B5B4F] md:inline-flex">
+            Demo mode
+          </div>
+        )}
         <button
           {...notificationsButtonProps}
           ref={notificationsButtonRef}

@@ -5,6 +5,9 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useButton } from "@react-aria/button";
 import { useRef } from "react";
+import SidebarAuthSection from "./SidebarAuthSection";
+import SidebarDemoSection from "./SidebarDemoSection";
+import { clerkEnabled } from "@/lib/auth-config";
 
 const navigation = [
   {
@@ -80,15 +83,6 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     },
     toggleButtonRef
   );
-
-  // User data - in a real app, this would come from auth context
-  const userName = "John Doe";
-  const userEmail = "john.doe@evaepic.com";
-  const userInitials = userName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase();
 
   return (
     <div
@@ -259,48 +253,10 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           )}
         </Link>
 
-        {/* Logout Button */}
-        <button
-          className={`flex items-center ${isCollapsed ? "justify-center w-12 h-12 mx-auto" : "justify-start w-full px-3 h-12"} rounded-2xl transition-all hover:bg-white/20 backdrop-blur-sm text-[#FAF0E6]/80 hover:text-white`}
-          title={isCollapsed ? "Logout" : undefined}
-        >
-          <svg
-            className="h-5 w-5 flex-shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-            />
-          </svg>
-          {!isCollapsed && (
-            <span className="ml-3 text-sm font-medium text-[#FAF0E6]/90">Logout</span>
-          )}
-        </button>
-
-        {/* User Info */}
-        {!isCollapsed && (
-          <div className="pt-4 border-t border-slate-700">
-            <div className="text-center">
-              <div className="font-medium text-white text-sm truncate px-2">
-                {userName}
-              </div>
-              <div className="text-xs text-[#FAF0E6]/70 truncate px-2 mt-1">
-                {userEmail}
-        </div>
-            </div>
-          </div>
-        )}
-        {isCollapsed && (
-          <div className="pt-4 border-t border-[#DEB887]/30 flex justify-center">
-            <div className="h-10 w-10 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center text-white font-medium text-sm shadow-md">
-              {userInitials}
-            </div>
-          </div>
+        {clerkEnabled ? (
+          <SidebarAuthSection isCollapsed={isCollapsed} />
+        ) : (
+          <SidebarDemoSection isCollapsed={isCollapsed} />
         )}
       </div>
     </div>
