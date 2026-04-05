@@ -145,13 +145,28 @@ export default function OrderProgressUI({ progress }: OrderProgressUIProps) {
   const [expandedSteps, setExpandedSteps] = useState<number[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Filter to only show completed and active steps
-  const visibleSteps = progress.filter(
-    (step) => step.status === "completed" || step.status === "active"
-  );
+  // Prefer completed/active steps, but never render an empty shell if the
+  // stream has not produced visible updates yet.
+  const visibleSteps = (() => {
+    const startedSteps = progress.filter(
+      (step) => step.status === "completed" || step.status === "active"
+    );
+
+    if (startedSteps.length > 0) {
+      return startedSteps;
+    }
+
+    if (progress.length > 0) {
+      const [firstStep, ...rest] = progress;
+      return [{ ...firstStep, status: "active" as const }, ...rest];
+    }
+
+    return [];
+  })();
 
   // Get the current active step
-  const activeStep = progress.find((step) => step.status === "active");
+  const activeStep =
+    progress.find((step) => step.status === "active") ?? visibleSteps[0];
   const allCompleted = progress.length > 0 && progress.every((step) => step.status === "completed");
 
   // Determine the title based on current step
